@@ -1,19 +1,19 @@
 import Phaser from 'phaser';
-import { TownScene } from './scenes/TownScene';
+import { CozyTownScene } from './scenes/CozyTownScene';
 
 export function createGame(parent: HTMLElement): Phaser.Game {
   const config: Phaser.Types.Core.GameConfig = {
     type: Phaser.AUTO,
     parent,
     width: 1280,
-    height: 960,
+    height: 800,
     pixelArt: true,
-    backgroundColor: '#2d5a27',
+    backgroundColor: '#87ceeb',
     scale: {
       mode: Phaser.Scale.FIT,
       autoCenter: Phaser.Scale.CENTER_BOTH,
     },
-    scene: [TownScene],
+    scene: [CozyTownScene],
   };
 
   return new Phaser.Game(config);
