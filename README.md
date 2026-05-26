@@ -1,4 +1,4 @@
-<![CDATA[# Pixel AI Town 🏘️
+# Pixel AI Town 🏘️
 
 ![Pixel AI Town Banner](banner.png)
 
@@ -313,4 +313,3 @@ To revert to the pre-v2 UI:
 ## License
 
 MIT
-]]>
