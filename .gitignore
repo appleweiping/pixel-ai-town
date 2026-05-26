@@ -26,4 +26,8 @@ art/processed/
 # Secrets (never commit)
 *.env.local
 .env.*
+.env
 secrets/
+art/.env
+art/test_*.py
+art/working_config.txt

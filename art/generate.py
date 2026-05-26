@@ -6,18 +6,21 @@ Run: python generate.py [--all | --agents | --buildings | --tileset | --player]
 
 import httpx
 import base64
+import os
 import sys
 from pathlib import Path
 import time
 
+from dotenv import load_dotenv
+load_dotenv(Path(__file__).parent / ".env")
+
 OUTPUT_DIR = Path(__file__).parent / "generated"
 OUTPUT_DIR.mkdir(exist_ok=True)
 
-# Agent Hub image generation endpoint
+# Working endpoint (configured via env or .env file)
 GENERATE_URL = "http://127.0.0.1:9800/generate-image"
-# Fallback: media-gen MCP rotator
-FALLBACK_URL = "http://127.0.0.1:9100/v1/images/generations"
-FALLBACK_KEY = None  # Set if needed
+FALLBACK_URL = os.environ.get("GPTIMAGE_URL", "https://cclaude.ai/v1/images/generations")
+FALLBACK_KEY = os.environ.get("GPTIMAGE_KEY", "")
 
 STYLE_PREFIX = (
     "pixel art, 32x32 game sprite, top-down RPG style, warm pastel color palette, "
@@ -67,7 +70,7 @@ def generate_image(prompt: str, name: str, size: str = "1024x1024"):
                 img_bytes = base64.b64decode(data["image"])
                 out_path = OUTPUT_DIR / f"{name}.png"
                 out_path.write_bytes(img_bytes)
-                print(f"  ✓ Saved: {out_path}")
+                print(f"  [OK] Saved: {out_path}")
                 return True
             elif "data" in data and data["data"]:
                 img_data = data["data"][0]
@@ -75,7 +78,7 @@ def generate_image(prompt: str, name: str, size: str = "1024x1024"):
                     img_bytes = base64.b64decode(img_data["b64_json"])
                     out_path = OUTPUT_DIR / f"{name}.png"
                     out_path.write_bytes(img_bytes)
-                    print(f"  ✓ Saved: {out_path}")
+                    print(f"  [OK] Saved: {out_path}")
                     return True
     except Exception as e:
         print(f"  Agent-hub failed: {e}")
@@ -89,7 +92,7 @@ def generate_image(prompt: str, name: str, size: str = "1024x1024"):
             FALLBACK_URL,
             json={"model": "gpt-image-2", "prompt": full_prompt, "size": size, "quality": "high", "n": 1},
             headers=headers,
-            timeout=60.0,
+            timeout=120.0,
         )
         if resp.status_code == 200:
             data = resp.json()
@@ -101,16 +104,16 @@ def generate_image(prompt: str, name: str, size: str = "1024x1024"):
                     img_resp = httpx.get(img_data["url"], timeout=30.0)
                     img_bytes = img_resp.content
                 else:
-                    print(f"  ✗ No image data in response")
+                    print(f"  [FAIL] No image data in response")
                     return False
                 out_path = OUTPUT_DIR / f"{name}.png"
                 out_path.write_bytes(img_bytes)
-                print(f"  ✓ Saved: {out_path}")
+                print(f"  [OK] Saved: {out_path}")
                 return True
     except Exception as e:
         print(f"  Fallback failed: {e}")
 
-    print(f"  ✗ Failed to generate: {name}")
+    print(f"  [FAIL] Failed to generate: {name}")
     return False
 
 
