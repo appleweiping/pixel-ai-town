@@ -111,9 +111,14 @@
 - **Implementation**: `npm run build` → static files → GitHub Pages. `tauri build` → native app.
 
 ### ADR-007: Art Pipeline
-- **Decision**: All art generated via GPT Image 2 (media-gen MCP tool), no external assets
-- **Rationale**: Consistent style, no licensing issues, can regenerate any asset on demand.
-- **Implementation**: Style prompt template + per-asset description → GPT Image 2 → post-process (resize, bg removal) → commit to assets/
+- **Decision**: All art generated via GPT Image 2 (media-gen MCP tool). Style: anime storybook illustration (NOT pixel art).
+- **Rationale**: Consistent high-quality style, no licensing issues, can regenerate any asset on demand.
+- **Implementation**: 
+  - Town map: Single large pre-rendered background image (isometric bird's-eye view, ~2560×1440)
+  - Characters: Individual chibi sprites with transparent backgrounds (~256×256 each)
+  - Buildings: Pre-rendered into the town map background (not separate tiles)
+  - UI: Hand-lettered signboard style labels, generated as image assets
+  - Rendering: Background image + character sprites overlaid (NOT tilemap-based)
 
 ---
 

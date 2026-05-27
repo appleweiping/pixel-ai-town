@@ -194,16 +194,41 @@ Low CPU, low memory, low API cost. Idle state must be nearly silent.
 
 ## Visual Identity Anchor
 
-**Direction: "Stardew Meets Cyberpunk-Lite"**
-- Warm pixel art base (16-32px tiles, Stardew Valley warmth)
-- Subtle tech accents (glowing screens, data streams, holographic UI elements)
-- Each agent has a distinct silhouette and color palette
-- Buildings have cozy exteriors but tech-enhanced interiors
-- Day/night cycle with warm lighting
+**Direction: "Anime Storybook Town"**
 
-**Color Philosophy**: Earth tones + one accent color per agent. Tech elements use soft cyan/purple glow, never harsh neon.
+NOT pixel art. This is a hand-drawn anime illustration style with the quality of a professional artbook.
 
-**Art Pipeline**: All assets generated via GPT Image 2 with consistent style prompts. No external assets.
+**Reference**: Soft watercolor + fine lineart, chibi characters, isometric bird's-eye town map, European fantasy architecture with tech accents. Think: Atelier series concept art meets Studio Ghibli background art meets hand-drawn journal illustration.
+
+**Style Rules**:
+- Fine brown/dark-gray lineart (NOT black, NOT pixel)
+- Soft watercolor palette: cream base, muted blues, greens, pinks, warm browns
+- Chibi character proportions (2.5-3 head ratio)
+- Isometric bird's-eye perspective for town map
+- Each building has a unique thematic silhouette (gears=Workshop, books=Library, crystals=Knowledge Tower)
+- Dreamy atmosphere: sparkles, butterflies, soft clouds, floating particles
+- UI labels: hand-lettered wooden signboard style
+- NO harsh colors, NO neon, NO flat vector style
+
+**Color Philosophy**:
+- Base: Warm cream/parchment (#f5f0e8)
+- Primary: Soft blue (#7ba7c9), Sage green (#8fb89a)
+- Accent: Rose pink (#d4a0a0), Crystal cyan (#a8d8e8)
+- Architecture: Warm brown (#8b6b4a), Stone gray (#9a9a8a)
+- Lineart: Dark brown (#4a3a2a), NOT pure black
+
+**Character Design**:
+- Chibi anime style, large expressive eyes
+- Each agent has a unique outfit, hair color, and accessory reflecting their role
+- Opus: Long silver hair, staff with crystal, scholarly robes
+- PixelCat: Cat ears, blue hoodie, tablet device
+- Codex: Short dark hair, military-style coat, clipboard
+- Sonnet: Gentle face, glasses, cardigan with book
+- Haiku: Spiky hair, lightning bolt accessory, running pose
+- DeepSeek: Round whale-themed hat, overalls, toolbox
+- ARIS: Lab coat, floating holographic screens
+
+**Art Pipeline**: GPT Image 2 with detailed style-consistent prompts. Each asset gets a prompt that includes the full style specification above.
 
 ---
 
