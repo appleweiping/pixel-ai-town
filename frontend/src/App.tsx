@@ -16,13 +16,13 @@ function App() {
     gameRef.current = new Phaser.Game({
       type: Phaser.AUTO,
       parent: containerRef.current,
-      width: 1280,
-      height: 720,
-      pixelArt: true,
-      backgroundColor: '#1a1a2e',
+      width: window.innerWidth,
+      height: window.innerHeight,
+      pixelArt: false,
+      backgroundColor: '#f5f0e8',
       scene: [TownScene],
       scale: {
-        mode: Phaser.Scale.FIT,
+        mode: Phaser.Scale.RESIZE,
         autoCenter: Phaser.Scale.CENTER_BOTH,
       },
     })
@@ -38,7 +38,11 @@ function App() {
       <div ref={containerRef} className="phaser-canvas" />
       {selectedAgent && <DialoguePanel agentId={selectedAgent} />}
       <div className="hud">
-        <span className="hud-item">Pixel Agent Town v2</span>
+        <span className="hud-title">Agent Town</span>
+        <span className="hud-sep">|</span>
+        <span className="hud-item">Click to move</span>
+        <span className="hud-sep">|</span>
+        <span className="hud-item">Click agent to chat</span>
       </div>
     </div>
   )

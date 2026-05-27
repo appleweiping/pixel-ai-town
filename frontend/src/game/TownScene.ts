@@ -3,38 +3,54 @@ import { useGameStore } from '../store/gameStore'
 
 const MAP_W = 1536
 const MAP_H = 1024
+const SPRITE_SIZE = 64
+const FRAME_W = 256
+const FRAME_H = 256
+const WALK_SPEED = 80
 
-interface ZoneHotspot {
-  name: string
-  x: number
-  y: number
-  radius: number
+interface AgentConfig {
+  id: string
+  homeX: number
+  homeY: number
+  wanderRadius: number
 }
 
-const ZONES: ZoneHotspot[] = [
-  { name: 'Central Plaza', x: 768, y: 580, radius: 100 },
-  { name: 'Town Hall', x: 768, y: 280, radius: 90 },
-  { name: 'Memory Library', x: 450, y: 200, radius: 80 },
-  { name: 'Knowledge Tower', x: 1100, y: 200, radius: 80 },
-  { name: 'Skill Workshop', x: 280, y: 400, radius: 80 },
-  { name: 'Resource Market', x: 1250, y: 400, radius: 80 },
-  { name: 'Devtools Lab', x: 280, y: 700, radius: 80 },
-  { name: 'Agent Homes', x: 650, y: 750, radius: 90 },
-  { name: 'Dream Garden', x: 1250, y: 750, radius: 90 },
+const AGENT_CONFIGS: AgentConfig[] = [
+  { id: 'opus', homeX: 768, homeY: 320, wanderRadius: 40 },
+  { id: 'pixelcat', homeX: 300, homeY: 440, wanderRadius: 35 },
+  { id: 'sonnet', homeX: 500, homeY: 240, wanderRadius: 35 },
+  { id: 'codex', homeX: 900, homeY: 600, wanderRadius: 40 },
+  { id: 'haiku', homeX: 650, homeY: 780, wanderRadius: 30 },
+  { id: 'deepseek', homeX: 1150, homeY: 620, wanderRadius: 35 },
+  { id: 'aris', homeX: 1100, homeY: 260, wanderRadius: 35 },
 ]
 
-const AGENT_HOMES: Record<string, { x: number; y: number }> = {
-  opus: { x: 768, y: 300 },
-  pixelcat: { x: 280, y: 420 },
-  sonnet: { x: 450, y: 220 },
-  codex: { x: 900, y: 580 },
-  haiku: { x: 650, y: 770 },
-  deepseek: { x: 1100, y: 600 },
-  aris: { x: 1100, y: 220 },
+const WALKABLE_Y_MIN = 180
+const WALKABLE_Y_MAX = 900
+const WALKABLE_X_MIN = 100
+const WALKABLE_X_MAX = 1440
+
+function isWalkable(x: number, y: number): boolean {
+  if (x < WALKABLE_X_MIN || x > WALKABLE_X_MAX) return false
+  if (y < WALKABLE_Y_MIN || y > WALKABLE_Y_MAX) return false
+  // Block building rooftops (approximate rectangles)
+  const buildings = [
+    { x: 680, y: 180, w: 180, h: 120 }, // Town Hall roof
+    { x: 380, y: 130, w: 140, h: 90 },  // Memory Library roof
+    { x: 1020, y: 130, w: 140, h: 100 }, // Knowledge Tower roof
+    { x: 200, y: 320, w: 120, h: 80 },  // Skill Workshop roof
+    { x: 1180, y: 320, w: 120, h: 80 }, // Resource Market roof
+  ]
+  for (const b of buildings) {
+    if (x > b.x && x < b.x + b.w && y > b.y && y < b.y + b.h) return false
+  }
+  return true
 }
 
 export class TownScene extends Phaser.Scene {
-  private agentSprites: Map<string, Phaser.GameObjects.Container> = new Map()
+  private agentSprites: Map<string, Phaser.GameObjects.Sprite> = new Map()
+  private playerSprite!: Phaser.GameObjects.Sprite
+  private playerTarget: { x: number; y: number } | null = null
   private bgReady = false
 
   constructor() {
@@ -43,154 +59,202 @@ export class TownScene extends Phaser.Scene {
 
   preload() {
     this.load.image('town-map', '/assets/town-map.png')
-    const agentIds = ['opus', 'pixelcat', 'sonnet', 'codex', 'haiku', 'deepseek', 'aris']
-    for (const id of agentIds) {
-      this.load.image(`char-${id}`, `/assets/characters/${id}.png`)
+
+    const allIds = [...AGENT_CONFIGS.map(a => a.id), 'player']
+    for (const id of allIds) {
+      this.load.spritesheet(`sheet-${id}`, `/assets/characters/${id}-sheet.png`, {
+        frameWidth: FRAME_W,
+        frameHeight: FRAME_H,
+      })
     }
+
     this.load.on('filecomplete-image-town-map', () => { this.bgReady = true })
-    this.load.on('loaderror', () => { this.bgReady = false })
   }
 
   create() {
     if (this.bgReady) {
       const bg = this.add.image(MAP_W / 2, MAP_H / 2, 'town-map')
       bg.setDisplaySize(MAP_W, MAP_H)
+      bg.setDepth(0)
     } else {
       this.createFallbackBackground()
     }
 
-    this.createZoneLabels()
+    this.createAnimations()
     this.createAgents()
+    this.createPlayer()
     this.setupCamera()
-    this.setupInput()
-    this.startTickLoop()
+    this.setupClickToMove()
+    this.startNPCIdleLoop()
   }
 
   private createFallbackBackground() {
     const g = this.add.graphics()
     g.fillStyle(0xf5f0e8)
     g.fillRect(0, 0, MAP_W, MAP_H)
-
-    g.lineStyle(1, 0xd4c8b0)
+    g.lineStyle(1, 0xd4c8b0, 0.3)
     for (let x = 0; x < MAP_W; x += 64) g.lineBetween(x, 0, x, MAP_H)
     for (let y = 0; y < MAP_H; y += 64) g.lineBetween(0, y, MAP_W, y)
-
-    for (const zone of ZONES) {
-      g.lineStyle(2, 0x8b6b4a, 0.3)
-      g.strokeCircle(zone.x, zone.y, zone.radius)
-      g.fillStyle(0xf0e8d8, 0.5)
-      g.fillCircle(zone.x, zone.y, zone.radius)
-    }
-
-    this.add.text(MAP_W / 2, 50, 'Town map image not found — run art generation to create assets', {
-      fontSize: '14px', color: '#8b6b4a', fontFamily: 'Georgia, serif',
-    }).setOrigin(0.5)
+    g.setDepth(0)
   }
 
-  private createZoneLabels() {
-    for (const zone of ZONES) {
-      const label = this.add.text(zone.x, zone.y - zone.radius - 12, zone.name, {
-        fontSize: '12px',
-        color: '#4a3a2a',
-        fontFamily: 'Georgia, serif',
-        backgroundColor: '#f5f0e8cc',
-        padding: { x: 6, y: 3 },
-      }).setOrigin(0.5)
-      label.setDepth(10)
+  private createAnimations() {
+    const allIds = [...AGENT_CONFIGS.map(a => a.id), 'player']
+    for (const id of allIds) {
+      const key = `sheet-${id}`
+      if (!this.textures.exists(key)) continue
+
+      // Row 0: walk-down (frames 0-3), Row 1: walk-left (4-7), Row 2: walk-right (8-11), Row 3: walk-up (12-15)
+      this.anims.create({ key: `${id}-walk-down`, frames: this.anims.generateFrameNumbers(key, { start: 0, end: 3 }), frameRate: 6, repeat: -1 })
+      this.anims.create({ key: `${id}-walk-left`, frames: this.anims.generateFrameNumbers(key, { start: 4, end: 7 }), frameRate: 6, repeat: -1 })
+      this.anims.create({ key: `${id}-walk-right`, frames: this.anims.generateFrameNumbers(key, { start: 8, end: 11 }), frameRate: 6, repeat: -1 })
+      this.anims.create({ key: `${id}-walk-up`, frames: this.anims.generateFrameNumbers(key, { start: 12, end: 15 }), frameRate: 6, repeat: -1 })
+      this.anims.create({ key: `${id}-idle`, frames: this.anims.generateFrameNumbers(key, { frames: [0, 1] }), frameRate: 2, repeat: -1 })
     }
   }
 
   private createAgents() {
-    const agents = useGameStore.getState().agents
-    for (const agent of agents) {
-      const home = AGENT_HOMES[agent.id] || { x: 768, y: 512 }
-      const container = this.add.container(home.x, home.y)
-
-      const shadow = this.add.ellipse(0, 24, 36, 12, 0x000000, 0.15)
-
-      let charSprite: Phaser.GameObjects.Image | Phaser.GameObjects.Arc
-      if (this.textures.exists(`char-${agent.id}`)) {
-        charSprite = this.add.image(0, 0, `char-${agent.id}`)
-        charSprite.setDisplaySize(48, 48)
+    for (const config of AGENT_CONFIGS) {
+      let sprite: Phaser.GameObjects.Sprite
+      if (this.textures.exists(`sheet-${config.id}`)) {
+        sprite = this.add.sprite(config.homeX, config.homeY, `sheet-${config.id}`, 0)
+        sprite.setDisplaySize(SPRITE_SIZE, SPRITE_SIZE)
+        sprite.play(`${config.id}-idle`)
       } else {
-        charSprite = this.add.circle(0, 0, 16, 0xffffff)
-        ;(charSprite as Phaser.GameObjects.Arc).setStrokeStyle(2, 0x4a3a2a)
+        sprite = this.add.sprite(config.homeX, config.homeY, '__DEFAULT')
       }
 
-      const label = this.add.text(0, -32, agent.name.split(' ')[0], {
-        fontSize: '10px', color: '#4a3a2a', fontFamily: 'Georgia, serif',
-        backgroundColor: '#f5f0e8dd', padding: { x: 4, y: 2 },
-      }).setOrigin(0.5)
-
-      container.add([shadow, charSprite, label])
-      container.setSize(48, 48)
-      container.setInteractive()
-      container.setDepth(20)
-
-      container.on('pointerdown', () => {
-        useGameStore.getState().selectAgent(agent.id)
+      sprite.setDepth(10 + Math.floor(config.homeY))
+      sprite.setInteractive()
+      sprite.on('pointerdown', (p: Phaser.Input.Pointer) => {
+        p.event.stopPropagation()
+        useGameStore.getState().selectAgent(config.id)
       })
 
-      this.agentSprites.set(agent.id, container)
+      this.agentSprites.set(config.id, sprite)
     }
+  }
+
+  private createPlayer() {
+    const startX = 768
+    const startY = 600
+    if (this.textures.exists('sheet-player')) {
+      this.playerSprite = this.add.sprite(startX, startY, 'sheet-player', 0)
+      this.playerSprite.setDisplaySize(SPRITE_SIZE, SPRITE_SIZE)
+      this.playerSprite.play('player-idle')
+    } else {
+      this.playerSprite = this.add.sprite(startX, startY, '__DEFAULT')
+    }
+    this.playerSprite.setDepth(100)
   }
 
   private setupCamera() {
     this.cameras.main.setBounds(0, 0, MAP_W, MAP_H)
-    this.cameras.main.setZoom(1)
-    this.cameras.main.centerOn(MAP_W / 2, MAP_H / 2)
-  }
-
-  private setupInput() {
-    const cursors = this.input.keyboard!.createCursorKeys()
-    const cam = this.cameras.main
-    const speed = 8
+    this.cameras.main.startFollow(this.playerSprite, true, 0.05, 0.05)
+    this.cameras.main.setZoom(1.2)
 
     this.input.on('wheel', (_p: any, _gos: any, _dx: number, dy: number) => {
+      const cam = this.cameras.main
       const newZoom = Phaser.Math.Clamp(cam.zoom - dy * 0.001, 0.6, 2.5)
       cam.setZoom(newZoom)
     })
-
-    this.events.on('update', () => {
-      if (cursors.left.isDown) cam.scrollX -= speed
-      if (cursors.right.isDown) cam.scrollX += speed
-      if (cursors.up.isDown) cam.scrollY -= speed
-      if (cursors.down.isDown) cam.scrollY += speed
-    })
   }
 
-  private startTickLoop() {
-    this.time.addEvent({
-      delay: 10000,
-      loop: true,
-      callback: () => this.simulateTick(),
-    })
-  }
-
-  private simulateTick() {
-    const agents = useGameStore.getState().agents
-    const updated = agents.map(a => {
-      const home = AGENT_HOMES[a.id] || { x: 768, y: 512 }
-      const targetZone = ZONES[Phaser.Math.Between(0, ZONES.length - 1)]
-      const useHome = Math.random() > 0.6
-      const target = useHome ? home : { x: targetZone.x, y: targetZone.y }
-      const newX = Phaser.Math.Clamp(target.x + Phaser.Math.Between(-40, 40), 50, MAP_W - 50)
-      const newY = Phaser.Math.Clamp(target.y + Phaser.Math.Between(-40, 40), 50, MAP_H - 50)
-      return { ...a, x: newX, y: newY }
-    })
-    useGameStore.getState().setAgents(updated)
-
-    for (const agent of updated) {
-      const sprite = this.agentSprites.get(agent.id)
-      if (sprite) {
-        this.tweens.add({
-          targets: sprite,
-          x: agent.x,
-          y: agent.y,
-          duration: 3000,
-          ease: 'Sine.easeInOut',
-        })
+  private setupClickToMove() {
+    this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      const worldX = pointer.worldX
+      const worldY = pointer.worldY
+      if (isWalkable(worldX, worldY)) {
+        this.playerTarget = { x: worldX, y: worldY }
       }
+    })
+  }
+
+  private startNPCIdleLoop() {
+    this.time.addEvent({
+      delay: 4000,
+      loop: true,
+      callback: () => this.npcIdleTick(),
+    })
+  }
+
+  private npcIdleTick() {
+    for (const config of AGENT_CONFIGS) {
+      const sprite = this.agentSprites.get(config.id)
+      if (!sprite) continue
+
+      // Small wander near home (not across the map)
+      const offsetX = Phaser.Math.Between(-config.wanderRadius, config.wanderRadius)
+      const offsetY = Phaser.Math.Between(-config.wanderRadius / 2, config.wanderRadius / 2)
+      const targetX = Phaser.Math.Clamp(config.homeX + offsetX, WALKABLE_X_MIN, WALKABLE_X_MAX)
+      const targetY = Phaser.Math.Clamp(config.homeY + offsetY, WALKABLE_Y_MIN, WALKABLE_Y_MAX)
+
+      if (!isWalkable(targetX, targetY)) return
+
+      const dx = targetX - sprite.x
+      const dy = targetY - sprite.y
+      const dir = Math.abs(dx) > Math.abs(dy)
+        ? (dx > 0 ? 'right' : 'left')
+        : (dy > 0 ? 'down' : 'up')
+
+      const animKey = `${config.id}-walk-${dir}`
+      if (this.anims.exists(animKey)) sprite.play(animKey, true)
+
+      const dist = Math.sqrt(dx * dx + dy * dy)
+      const duration = (dist / 40) * 1000
+
+      this.tweens.add({
+        targets: sprite,
+        x: targetX,
+        y: targetY,
+        duration: Math.max(duration, 800),
+        ease: 'Sine.easeInOut',
+        onUpdate: () => { sprite.setDepth(10 + Math.floor(sprite.y)) },
+        onComplete: () => {
+          const idleKey = `${config.id}-idle`
+          if (this.anims.exists(idleKey)) sprite.play(idleKey, true)
+        },
+      })
+    }
+  }
+
+  update(_time: number, delta: number) {
+    if (!this.playerTarget || !this.playerSprite) return
+
+    const dx = this.playerTarget.x - this.playerSprite.x
+    const dy = this.playerTarget.y - this.playerSprite.y
+    const dist = Math.sqrt(dx * dx + dy * dy)
+
+    if (dist < 5) {
+      this.playerTarget = null
+      const idleKey = 'player-idle'
+      if (this.anims.exists(idleKey)) this.playerSprite.play(idleKey, true)
+      return
+    }
+
+    const speed = WALK_SPEED * (delta / 1000)
+    const moveX = (dx / dist) * Math.min(speed, dist)
+    const moveY = (dy / dist) * Math.min(speed, dist)
+
+    const newX = this.playerSprite.x + moveX
+    const newY = this.playerSprite.y + moveY
+
+    if (isWalkable(newX, newY)) {
+      this.playerSprite.x = newX
+      this.playerSprite.y = newY
+      this.playerSprite.setDepth(100 + Math.floor(newY))
+
+      const dir = Math.abs(dx) > Math.abs(dy)
+        ? (dx > 0 ? 'right' : 'left')
+        : (dy > 0 ? 'down' : 'up')
+      const animKey = `player-walk-${dir}`
+      if (this.anims.exists(animKey) && this.playerSprite.anims.currentAnim?.key !== animKey) {
+        this.playerSprite.play(animKey, true)
+      }
+    } else {
+      this.playerTarget = null
+      const idleKey = 'player-idle'
+      if (this.anims.exists(idleKey)) this.playerSprite.play(idleKey, true)
     }
   }
 }
