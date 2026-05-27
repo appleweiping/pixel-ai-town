@@ -116,16 +116,21 @@ async def dialogue(req: DialogueRequest):
             mood="sleepy",
         )
 
+    # Check if this is a command (starts with action words)
+    is_command = any(req.message.lower().startswith(w) for w in ['do ', 'run ', 'check ', 'find ', 'search ', 'write ', 'create ', 'help me ', 'please '])
+
     # Include real context about what the agent is actually doing
     real_context = await get_agent_real_context(req.agent_id)
 
-    prompt = f"""{agent['personality']}
+    system_prompt = f"""{agent['personality']}
 
 Current real status: {real_context}
 
-You are in a cozy anime-style town. A player (the Town Mayor) just walked up to you and said: "{req.message}"
+You are in a cozy anime-style town. You are a REAL working AI agent — when the player asks you to do something, you actually do it (search memories, check skills, review code, etc). You have access to the real system.
 
-Respond in character. Keep it short (1-3 sentences). Be natural and conversational. Reference your actual current work if relevant."""
+{"The player is giving you a TASK. Acknowledge it, explain what you'll do, and confirm you're starting work." if is_command else "The player is chatting. Respond naturally in character."}"""
+
+    prompt = f'The Town Mayor says: "{req.message}"'
 
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
@@ -134,9 +139,12 @@ Respond in character. Keep it short (1-3 sentences). Be natural and conversation
                 headers={"Authorization": f"Bearer {DEEPSEEK_API_KEY}"},
                 json={
                     "model": "deepseek-chat",
-                    "messages": [{"role": "user", "content": prompt}],
-                    "max_tokens": 150,
-                    "temperature": 0.8,
+                    "messages": [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": prompt},
+                    ],
+                    "max_tokens": 200,
+                    "temperature": 0.7,
                 },
             )
             data = resp.json()
@@ -144,7 +152,8 @@ Respond in character. Keep it short (1-3 sentences). Be natural and conversation
     except Exception:
         reply = f"*{agent['name']} seems distracted* ...sorry, my thoughts wandered. What were you saying?"
 
-    return DialogueResponse(response=reply, agent_id=req.agent_id, mood="engaged")
+    mood = "working" if is_command else "engaged"
+    return DialogueResponse(response=reply, agent_id=req.agent_id, mood=mood)
 
 
 async def get_agent_real_context(agent_id: str) -> str:
